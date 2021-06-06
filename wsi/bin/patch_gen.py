@@ -1,5 +1,5 @@
 import sys
-import os
+import os, random
 import argparse
 import logging
 import time
@@ -18,8 +18,10 @@ parser.add_argument('coords_path', default=None, metavar='COORDS_PATH',
                     type=str, help='Path to the input list of coordinates')
 parser.add_argument('patch_path', default=None, metavar='PATCH_PATH', type=str,
                     help='Path to the output directory of patch images')
-parser.add_argument('--patch_size', default=768, type=int, help='patch size, '
-                    'default 768')
+parser.add_argument('patch_stage', default=None, metavar='patch_stage', type=str,
+                    help='Path to the output directory of patch images')
+parser.add_argument('--patch_size', default=256, type=int, help='patch size, '
+                    'default 256')
 parser.add_argument('--level', default=0, type=int, help='level for WSI, to '
                     'generate patches, default 0')
 parser.add_argument('--num_process', default=5, type=int,
@@ -31,25 +33,44 @@ lock = Lock()
 
 def process(opts):
     i, pid, x_center, y_center, args = opts
+    if pid.split('_')[0] == 'Tumor':
+        if 1<=int(pid.split('_')[-1].split('.')[0])<=70 or int(pid.split('_')[-1].split('.')[0]) == 111:
+            center = 'Raboud'
+        else:
+            center = 'Utrecht'
+    elif pid.split('_')[0] == 'Normal':
+        if 1<=int(pid.split('_')[-1].split('.')[0])<=100:
+            center = 'Raboud'
+        else:
+            center = 'Utrecht'
+
     x = int(int(x_center) - args.patch_size / 2)
     y = int(int(y_center) - args.patch_size / 2)
-    wsi_path = os.path.join(args.wsi_path, pid + '.tif')
-    slide = openslide.OpenSlide(wsi_path)
-    img = slide.read_region(
-        (x, y), args.level,
-        (args.patch_size, args.patch_size)).convert('RGB')
 
-    img.save(os.path.join(args.patch_path, str(i) + '.png'))
+    if pid.split('_')[0] == 'Tumor':
+        wsi_path = os.path.join(args.wsi_path, 'tumor', 'tumor' + '_' + pid.split('_')[1] + '.tif')
+    if pid.split('_')[0] == 'Normal':
+        wsi_path = os.path.join(args.wsi_path, 'normal', 'normal' + '_' + pid.split('_')[1] + '.tif')
+    try:
+        slide = openslide.OpenSlide(wsi_path)
+        img = slide.read_region(
+            (x, y), args.level,
+            (args.patch_size, args.patch_size)).convert('RGB')
 
-    global lock
-    global count
+        img.save(os.path.join(args.patch_path, center, args.patch_stage + '_' + str(i) + '.jpg'))
+        img.save(os.path.join(args.patch_path, args.patch_stage, str(i) + '.jpg'))
 
-    with lock:
-        count.value += 1
-        if (count.value) % 100 == 0:
-            logging.info('{}, {} patches generated...'
-                         .format(time.strftime("%Y-%m-%d %H:%M:%S"),
-                                 count.value))
+        global lock
+        global count
+
+        with lock:
+            count.value += 1
+            if (count.value) % 100 == 0:
+                logging.info('{}, {} patches generated...'
+                             .format(time.strftime("%Y-%m-%d %H:%M:%S"),
+                                     count.value))
+    except:
+        print('cant read ',wsi_path)
 
 
 def run(args):
@@ -62,7 +83,11 @@ def run(args):
 
     opts_list = []
     infile = open(args.coords_path)
-    for i, line in enumerate(infile):
+
+    lines = infile.readlines()
+    selected_lines = random.choices(lines, k=1000)
+
+    for i, line in enumerate(selected_lines):
         pid, x_center, y_center = line.strip('\n').split(',')
         opts_list.append((i, pid, x_center, y_center, args))
     infile.close()
