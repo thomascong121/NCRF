@@ -2,11 +2,13 @@ import sys
 import os
 import argparse
 import logging
-
+sys.path.append(r"C:\Users\thomas\Documents\GitHub\NCRF\venv\Lib\site-packages\openslide-win64-20171122\bin")
+os.add_dll_directory(r"C:\Users\thomas\Documents\GitHub\NCRF\venv\Lib\site-packages\openslide-win64-20171122\bin")
 import numpy as np
 import openslide
 from skimage.color import rgb2hsv
 from skimage.filters import threshold_otsu
+from tqdm import tqdm
 
 sys.path.append(os.path.dirname(os.path.abspath(__file__)) + '/../../')
 
@@ -24,29 +26,35 @@ parser.add_argument('--RGB_min', default=50, type=int, help='min value for RGB'
 
 def run(args):
     logging.basicConfig(level=logging.INFO)
+    for wsi in tqdm(os.listdir(args.wsi_path)):
+        slide_full = os.path.join(args.wsi_path, wsi)
 
-    slide = openslide.OpenSlide(args.wsi_path)
+        slide = openslide.OpenSlide(slide_full)
 
-    # note the shape of img_RGB is the transpose of slide.level_dimensions
-    img_RGB = np.transpose(np.array(slide.read_region((0, 0),
-                           args.level,
-                           slide.level_dimensions[args.level]).convert('RGB')),
-                           axes=[1, 0, 2])
+        # note the shape of img_RGB is the transpose of slide.level_dimensions
+        img_RGB = np.transpose(np.array(slide.read_region((0, 0),
+                               args.level,
+                               slide.level_dimensions[args.level]).convert('RGB')),
+                               axes=[1, 0, 2])
 
-    img_HSV = rgb2hsv(img_RGB)
+        img_HSV = rgb2hsv(img_RGB)
 
-    background_R = img_RGB[:, :, 0] > threshold_otsu(img_RGB[:, :, 0])
-    background_G = img_RGB[:, :, 1] > threshold_otsu(img_RGB[:, :, 1])
-    background_B = img_RGB[:, :, 2] > threshold_otsu(img_RGB[:, :, 2])
-    tissue_RGB = np.logical_not(background_R & background_G & background_B)
-    tissue_S = img_HSV[:, :, 1] > threshold_otsu(img_HSV[:, :, 1])
-    min_R = img_RGB[:, :, 0] > args.RGB_min
-    min_G = img_RGB[:, :, 1] > args.RGB_min
-    min_B = img_RGB[:, :, 2] > args.RGB_min
+        background_R = img_RGB[:, :, 0] > threshold_otsu(img_RGB[:, :, 0])
+        background_G = img_RGB[:, :, 1] > threshold_otsu(img_RGB[:, :, 1])
+        background_B = img_RGB[:, :, 2] > threshold_otsu(img_RGB[:, :, 2])
+        tissue_RGB = np.logical_not(background_R & background_G & background_B)
+        tissue_S = img_HSV[:, :, 1] > threshold_otsu(img_HSV[:, :, 1])
+        min_R = img_RGB[:, :, 0] > args.RGB_min
+        min_G = img_RGB[:, :, 1] > args.RGB_min
+        min_B = img_RGB[:, :, 2] > args.RGB_min
 
-    tissue_mask = tissue_S & tissue_RGB & min_R & min_G & min_B
+        tissue_mask = tissue_S & tissue_RGB & min_R & min_G & min_B
 
-    np.save(args.npy_path, tissue_mask)
+        out_np_path = os.path.join(args.npy_path, wsi[:-4] + '.npy')
+        np.save(out_np_path, tissue_mask)
+        slide.close()
+        # print('shape check ',img_RGB.shape, tissue_mask.shape)
+        # break
 
 
 def main():

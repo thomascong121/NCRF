@@ -3,7 +3,7 @@ import xml.etree.ElementTree as ET
 import copy
 
 import numpy as np
-from skimage.measure import points_in_poly
+# from skimage.measure import points_in_poly
 
 np.random.seed(0)
 

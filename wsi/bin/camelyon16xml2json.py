@@ -2,6 +2,7 @@ import sys
 import os
 import argparse
 import logging
+from tqdm import tqdm
 
 sys.path.append(os.path.dirname(os.path.abspath(__file__)) + '/../../')
 
@@ -16,7 +17,12 @@ parser.add_argument('json_path', default=None, metavar='JSON_PATH', type=str,
 
 
 def run(args):
-    Formatter.camelyon16xml2json(args.xml_path, args.json_path)
+    for xml_file in tqdm(os.listdir(args.xml_path)):
+        xml_file_full = os.path.join(args.xml_path, xml_file)
+        out_json = xml_file[:-4] + '.json'
+        out_json_full  = os.path.join(args.json_path, out_json)
+
+        Formatter.camelyon16xml2json(xml_file_full, out_json_full)
 
 
 def main():
